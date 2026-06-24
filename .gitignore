@@ -16,11 +16,10 @@ outputs/
 *.bin
 *.safetensors
 
-# Datasets (we symlink, don't commit)
+# Loose dataset files at data/ root are not tracked — snapshots live
+# under data/<YYYY-MM-DD>/ and the data/current symlink points at one.
 data/*.jsonl
 data/*.json
-data/snapshots/
-data/current        # machine-specific symlink to regulations/dataset/us/<date>/
 
 # Notebook outputs (commit clean notebooks only)
 .ipynb_checkpoints/
