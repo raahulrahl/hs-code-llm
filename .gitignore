@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+.uv/
+*.egg-info/
+
+# Training outputs
+checkpoints/
+runs/
+wandb/
+logs/
+outputs/
+*.pt
+*.bin
+*.safetensors
+
+# Datasets (we symlink, don't commit)
+data/*.jsonl
+data/*.json
+data/snapshots/
+data/current        # machine-specific symlink to regulations/dataset/us/<date>/
+
+# Notebook outputs (commit clean notebooks only)
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
