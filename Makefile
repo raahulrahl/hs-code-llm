@@ -40,6 +40,8 @@ PHASEA_OUT   ?= checkpoints/phaseA-sft
 PHASEA_ROWS  ?= 50000
 PHASEA_BATCH ?= 2
 PHASEA_GA    ?= 4
+PHASEA_SEQ   ?= 2048
+PHASEA_EPOCHS ?= 3
 
 # RL output (Phase A3)
 PHASEA_RL_OUT ?= checkpoints/phaseA-rl
@@ -106,13 +108,13 @@ phase0: ## Phase 0 SFT (~15 min): 1000 rows, 1 epoch, doc §5 scale
 
 # ---------- Phase A — Qwen 7B SFT then RL ----------------------------------
 
-phaseA-sft: ## Phase A SFT (~6-12 h on M4 36 GB): Qwen3-4B-Instruct-2507 4-bit, 50K rows
+phaseA-sft: ## Phase A SFT — Qwen3-4B-Instruct-2507 4-bit, configurable batch/seq/epochs
 	$(UV) run python -m hs_code_llm.sft_phase0 \
 		--train $(TRAIN_FILE) --eval $(EVAL_FILE) \
 		--model $(PHASEA_MODEL) --out-dir $(PHASEA_OUT) \
-		--max-train-rows $(PHASEA_ROWS) --epochs 3 \
+		--max-train-rows $(PHASEA_ROWS) --epochs $(PHASEA_EPOCHS) \
 		--batch-size $(PHASEA_BATCH) --grad-accum $(PHASEA_GA) \
-		--max-seq-length 2048
+		--max-seq-length $(PHASEA_SEQ)
 
 phaseA-rl: ## Phase A RL with GRPO (~7-10 days on Mac; consider RunPod)
 	@echo "Phase A RL not yet implemented — uses mlx_tune.GRPOTrainer + hs_code_llm.reward"
