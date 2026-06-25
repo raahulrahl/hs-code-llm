@@ -60,6 +60,9 @@ install: ## uv sync + scaffold .env from .env.example if needed
 test: ## Run reward unit tests (52 cases)
 	$(UV) run pytest
 
+scan: ## End-to-end check of .env, HF_TOKEN, WANDB_API_KEY, and the trainer monkey-patch
+	$(UV) run python -m hs_code_llm.scan
+
 # ---------- Data -----------------------------------------------------------
 
 data: $(TRAIN_FILE) ## Make sure the dataset symlink exists
