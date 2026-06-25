@@ -58,6 +58,41 @@ def _import_heavy():
     return FastLanguageModel, generate
 
 
+def _ensure_adapter_config(adapter_dir: Path) -> None:
+    """If a half-trained adapter is missing ``adapter_config.json``
+    (Ctrl-C before mlx-tune's final `_save_adapter_config()` runs),
+    write a default one that matches the LoRA shape sft_phase0 trains
+    with. Lets us load *any* intermediate checkpoint without a stack
+    trace.
+    """
+    cfg = adapter_dir / "adapter_config.json"
+    if cfg.exists():
+        return
+    if not (adapter_dir / "adapters.safetensors").exists():
+        return
+    import json as _json
+    # Layer count varies by model (Qwen3-4B = 36, Qwen2.5-0.5B = 24,
+    # Qwen2.5-7B = 28). mlx-lm's load_adapters uses num_layers to
+    # decide HOW MANY layers to swap LoRA into; passing a value larger
+    # than the model itself is a no-op for the missing layers, so
+    # over-specifying (36) is the safe default.
+    _json.dump({
+        "fine_tune_type": "lora",
+        "num_layers": 36,
+        "lora_parameters": {
+            "rank": 16,
+            "scale": 2.0,
+            "dropout": 0.05,
+            "keys": [
+                "mlp.down_proj", "mlp.gate_proj", "mlp.up_proj",
+                "self_attn.k_proj", "self_attn.o_proj",
+                "self_attn.q_proj", "self_attn.v_proj",
+            ],
+        },
+    }, cfg.open("w"), indent=2)
+    print(f"[predict] wrote missing {cfg} (matched sft_phase0 LoRA defaults)")
+
+
 def _load(adapter_dir: Path, base_model: str, max_seq_length: int):
     FastLanguageModel, generate = _import_heavy()
     print(f"[predict] loading base model {base_model}")
@@ -68,9 +103,8 @@ def _load(adapter_dir: Path, base_model: str, max_seq_length: int):
     )
     adapter_path = adapter_dir / "adapters" / "adapters.safetensors"
     if adapter_path.exists():
+        _ensure_adapter_config(adapter_path.parent)
         print(f"[predict] loading adapter {adapter_path}")
-        # mlx-lm + mlx-tune load adapters by path; FastLanguageModel
-        # has a helper but `mlx_lm.load_adapter` also works.
         try:
             from mlx_lm.tuner.utils import load_adapters
             model.model = load_adapters(model.model, str(adapter_path.parent))
