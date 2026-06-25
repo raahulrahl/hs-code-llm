@@ -11,6 +11,8 @@ dependencies = [
   # portable. See project_details.md §5.
   "mlx-tune>=0.6",
   "datasets>=3.0",
+  "python-dotenv>=1.0",       # loads .env so HF_TOKEN + WANDB_API_KEY are set
+  "wandb>=0.18",              # optional — sft_phase0 no-ops if WANDB_API_KEY unset
 ]
 
 [dependency-groups]

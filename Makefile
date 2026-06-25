@@ -50,8 +50,12 @@ help: ## Show this help
 
 # ---------- Setup / quality -----------------------------------------------
 
-install: ## uv sync — install all deps including mlx-tune
+install: ## uv sync + scaffold .env from .env.example if needed
 	$(UV) sync
+	@if [ ! -f .env ] && [ -f .env.example ]; then \
+		cp .env.example .env; \
+		echo "==> created .env from .env.example — drop in your HF_TOKEN + WANDB_API_KEY"; \
+	fi
 
 test: ## Run reward unit tests (52 cases)
 	$(UV) run pytest

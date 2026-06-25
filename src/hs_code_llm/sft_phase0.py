@@ -28,11 +28,101 @@ Output: a LoRA adapter at ``checkpoints/phase0/``.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 DEFAULT_MODEL = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
 DEFAULT_OUT   = Path(__file__).resolve().parents[2] / "checkpoints" / "phase0"
+
+
+def _load_env() -> None:
+    """Load ``.env`` (gitignored) from the repo root, if present.
+
+    Sets HF_TOKEN, WANDB_API_KEY, etc. Idempotent — silent no-op if no
+    .env exists, so CI / contributors without secrets keep working.
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    repo_root = Path(__file__).resolve().parents[2]
+    load_dotenv(repo_root / ".env", override=False)
+
+
+def _maybe_init_wandb(args) -> bool:
+    """If WANDB_API_KEY is in the env, init a wandb run and return True.
+
+    Otherwise no-op. Returns False so callers know whether to bother
+    constructing the callback / monkey-patch.
+    """
+    if not os.environ.get("WANDB_API_KEY"):
+        return False
+    import wandb
+    wandb.init(
+        project=os.environ.get("WANDB_PROJECT", "hs-code-llm"),
+        entity=os.environ.get("WANDB_ENTITY") or None,
+        name=f"phase0-{args.model.rsplit('/', 1)[-1]}-{args.max_train_rows or 'all'}rows",
+        config={
+            "phase": "phase0",
+            "model": args.model,
+            "max_train_rows": args.max_train_rows,
+            "max_eval_rows":  args.max_eval_rows,
+            "epochs":         args.epochs,
+            "max_steps":      args.max_steps,
+            "batch_size":     args.batch_size,
+            "grad_accum":     args.grad_accum,
+            "lr":             args.lr,
+            "max_seq_length": args.max_seq_length,
+            "lora_r":         16,
+            "lora_alpha":     32,
+        },
+    )
+    return True
+
+
+def _install_wandb_callback() -> None:
+    """Monkey-patch ``mlx_lm.tuner.trainer.train`` to inject a wandb
+    ``TrainingCallback``.
+
+    mlx-tune's ``SFTTrainer`` calls ``mlx_lm.tuner.trainer.train()``
+    directly without exposing the ``training_callback`` parameter, so
+    wandb integration has to slip in at the mlx-lm boundary. The
+    callback receives ``train_info`` per logging step (iter, loss, LR,
+    tokens/s, peak memory) and ``val_info`` per eval (iter, val_loss,
+    val_time) — both go straight to ``wandb.log()`` so the wandb UI
+    can chart everything live.
+    """
+    import wandb
+    import mlx_lm.tuner.trainer as _tr
+    from mlx_lm.tuner.callbacks import TrainingCallback
+
+    class _WandbCallback(TrainingCallback):
+        def on_train_loss_report(self, train_info: dict) -> None:
+            it = train_info.get("iteration")
+            wandb.log({
+                "train/loss":         train_info.get("train_loss"),
+                "train/learning_rate": train_info.get("learning_rate"),
+                "train/it_per_sec":   train_info.get("iterations_per_second"),
+                "train/tokens_per_sec": train_info.get("tokens_per_second"),
+                "train/trained_tokens": train_info.get("trained_tokens"),
+                "train/peak_memory_gb": train_info.get("peak_memory"),
+            }, step=it)
+
+        def on_val_loss_report(self, val_info: dict) -> None:
+            it = val_info.get("iteration")
+            wandb.log({
+                "val/loss":     val_info.get("val_loss"),
+                "val/time_sec": val_info.get("val_time"),
+            }, step=it)
+
+    cb = _WandbCallback()
+    _orig_train = _tr.train
+
+    def _train_with_cb(*pargs, training_callback=None, **kwargs):
+        return _orig_train(*pargs, training_callback=training_callback or cb, **kwargs)
+
+    _tr.train = _train_with_cb
 
 
 def _import_heavy():
@@ -68,6 +158,12 @@ def _load_dataset(path: Path, max_rows: int | None, tokenizer):
 
 
 def run(args: argparse.Namespace) -> int:
+    _load_env()
+    wandb_on = _maybe_init_wandb(args)
+    if wandb_on:
+        _install_wandb_callback()
+        print("[phase0] wandb run started — see https://wandb.ai/")
+
     FastLanguageModel, SFTTrainer, SFTConfig = _import_heavy()
 
     print(f"[phase0] model={args.model} max_seq_length={args.max_seq_length}")

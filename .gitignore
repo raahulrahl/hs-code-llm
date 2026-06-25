@@ -24,5 +24,9 @@ data/*.json
 # Notebook outputs (commit clean notebooks only)
 .ipynb_checkpoints/
 
+# Secrets — see .env.example for the shape, NEVER commit .env
+.env
+.env.local
+
 # OS
 .DS_Store

@@ -52,7 +52,9 @@ Mirrors [project_details.md §5](project_details.md):
 ## Quick start
 
 ```bash
-make install        # uv sync (mlx-tune + datasets)
+make install        # uv sync + scaffolds .env from .env.example
+# Edit .env — drop in your HF_TOKEN + WANDB_API_KEY (both optional).
+# .env is gitignored. WANDB_API_KEY unset = wandb logging is a no-op.
 make test           # 52 reward unit tests
 make phase0-crash   # ~3 min: 50-step crash test on 100 rows
 make phase0         # ~15 min: 1000 rows, 1 epoch (doc §5 scale)
