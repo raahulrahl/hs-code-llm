@@ -62,8 +62,27 @@ make predict        # interactive — type product descriptions
 make eval           # tier breakdown on 200 held-out examples
 
 # For Phase A on a beefier Mac (M4):
-make phaseA-sft     # Qwen 7B SFT, 50K rows, ~1-2 days
+make phaseA-sft     # Qwen3-4B-Instruct-2507 SFT, 50K rows, ~6-12 h
 make phaseA-rl      # GRPO RL — wire-up pending
+```
+
+### Base model choice
+
+Phase A defaults to **`mlx-community/Qwen3-4B-Instruct-2507-4bit`** (the
+doc originally specced Qwen 2.5 7B; the upgrade is documented in the
+Makefile comment for `PHASEA_MODEL`). distil labs benchmarked 12 small
+LMs for fine-tuning quality — Qwen3-4B-Instruct-2507 ranked #1, beating
+its 8B sibling. It hit 0.89 on Banking77 (77-class intent
+classification, the closest public analog to our 98-chapter HS
+classification), is Apache 2.0, and trains ~2× faster than 7B on M4
+unified memory.
+
+A/B alternatives, one-line override:
+
+```bash
+make phaseA-sft PHASEA_MODEL=mlx-community/Qwen3-4B-Thinking-2507-4bit   # CoT sibling
+make phaseA-sft PHASEA_MODEL=mlx-community/Qwen3-8B-4bit                  # doc's size class
+make phaseA-sft PHASEA_MODEL=mlx-community/Qwen3.5-9B-4bit                # newest gen
 ```
 
 All training runs on MLX (Apple Silicon GPU) via mlx-tune. Same script

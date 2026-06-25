@@ -19,13 +19,27 @@ PHASE0_MODEL ?= mlx-community/Qwen2.5-0.5B-Instruct-4bit
 PHASE0_OUT   ?= checkpoints/phase0
 PHASE0_ROWS  ?= 1000
 
-# Phase A — 7B base, full dataset. M4 with 36+ GB unified can handle
-# Qwen 7B 4-bit; bump to bf16 if you have 64 GB+.
-PHASEA_MODEL ?= mlx-community/Qwen2.5-7B-Instruct-4bit
+# Phase A — Qwen3-4B-Instruct-2507, full dataset.
+#
+# Why this model:
+#   * distil labs benchmark (12 base models across 8 tasks): Qwen3-4B-
+#     Instruct-2507 ranked #1 for fine-tuning quality, beating Qwen3-8B.
+#   * Banking77 (77-class intent classification, direct analog of our
+#     98-chapter classification) hit 0.89 fine-tuned.
+#   * Apache 2.0 — commercial-clean, no MAU clause to legal-review.
+#   * 4B 4-bit ≈ 2.5 GB weights → trains ~2× faster than the 7B the
+#     doc originally specced; M4 36 GB has plenty of activation
+#     headroom even at PHASEA_BATCH=2.
+#
+# Swap PHASEA_MODEL on the command line if you want to A/B against:
+#   - mlx-community/Qwen3-4B-Thinking-2507-4bit  (CoT-tuned sibling)
+#   - mlx-community/Qwen3-8B-4bit                (size-class doc default)
+#   - mlx-community/Qwen3.5-9B-4bit              (newer gen, no benchmarks yet)
+PHASEA_MODEL ?= mlx-community/Qwen3-4B-Instruct-2507-4bit
 PHASEA_OUT   ?= checkpoints/phaseA-sft
 PHASEA_ROWS  ?= 50000
-PHASEA_BATCH ?= 1
-PHASEA_GA    ?= 8
+PHASEA_BATCH ?= 2
+PHASEA_GA    ?= 4
 
 # RL output (Phase A3)
 PHASEA_RL_OUT ?= checkpoints/phaseA-rl
@@ -92,7 +106,7 @@ phase0: ## Phase 0 SFT (~15 min): 1000 rows, 1 epoch, doc §5 scale
 
 # ---------- Phase A — Qwen 7B SFT then RL ----------------------------------
 
-phaseA-sft: ## Phase A SFT (~1-2 days on M4 36 GB): Qwen 7B 4-bit, 50K rows
+phaseA-sft: ## Phase A SFT (~6-12 h on M4 36 GB): Qwen3-4B-Instruct-2507 4-bit, 50K rows
 	$(UV) run python -m hs_code_llm.sft_phase0 \
 		--train $(TRAIN_FILE) --eval $(EVAL_FILE) \
 		--model $(PHASEA_MODEL) --out-dir $(PHASEA_OUT) \
